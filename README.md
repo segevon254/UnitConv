@@ -20,6 +20,7 @@ Recipe: 1 1/2 cups (354.88 mL) flour, ½ cup (118.29 mL) sugar, 8 oz (226.8 g) b
 | **Unit spellings** | Abbreviations, full names, plurals, and UPPER/Title case (`mi`, `mile`, `Miles`, `MILES`; `°F`, `℉`, `degrees Fahrenheit`) |
 | **False-positive guards** | Skips dates and years (`in 2020`, `2019 in review`), prepositions (`5 in the morning`), money (`$5m`), rates (`60 km/h`, `30 miles per hour`), math (`2 + 3 = 5 m`), typography (`12pt font`), quoted numbers (`"Top 10"`), version numbers (`1.2.3`), and values the page already converted (`10 miles (16 km)`) |
 | **Display modes** | Inline annotation: `10 miles (16.09 km)`<br>Direct replacement: `16.09 km`<br>Hover tooltip: the text stays the same and hovering shows the conversion |
+| **Per-unit rules (advanced)** | Choose what each unit converts to, one by one: *miles → km*, *feet → cm*, *km → m*, *pounds → ounces*, *°F → don't convert*… A rule beats the category and system settings (even within the same system). The whole set can be paused with one switch without losing it. |
 | **Highlight & hover** | Changed text gets a soft marker highlight in every mode. Hovering any converted value shows a card with the original exactly as the page wrote it (*As written*) and the conversion. Both can be turned off. |
 | **Preferences** | A global system (metric, US customary or UK imperial), plus a per-category target: *Auto* (best-fit unit), *Off*, or a fixed unit. Also decimal places (0–4) and highlighting. |
 | **Performance** | TreeWalker scanning, a MutationObserver for SPAs and infinite scroll, and idle-time batching. In testing, 5,000 rows (about 10,000 conversions) took ~0.5 s with no long tasks over 50 ms. |
@@ -82,14 +83,17 @@ After editing the code, click the ↻ reload icon on the extension's card, then 
     - `Auto` picks the best-fitting unit, e.g. `5 in → 12.7 cm` but `10 mi → 16.09 km`.
     - `Don't convert` disables that category.
     - A fixed unit (e.g. always `cm`) always converts into that unit. A fixed unit from the other system reverses the direction for that category only (e.g. metric everywhere but temperatures in °F).
+  - *Advanced: convert each unit individually:* turn on the switch, open a category, and pick a target (or *Don't convert*) for any unit. Units left on *Default* follow the settings above. *Clear all rules* resets them.
   - *Live preview:* type any text to see what will be detected.
 
-Units that are already in your target system are never converted. For example, a metric user won't see `5 km` changed into `5000 m`.
+Units that are already in your target system are normally left alone. For example, a metric user won't see `5 km` changed into `5000 m`, unless they add a per-unit rule for that.
+
+Which setting decides: **per-unit rule** (if the advanced switch is on) → **category target** → **preferred system**.
 
 ## Development
 
 ```bash
-npm test       # 93 engine tests (node:test, no dependencies)
+npm test       # 99 engine tests (node:test, no dependencies)
 npm run lint   # Mozilla web-ext lint (manifest + code checks)
 npm run build  # zip for AMO / Chrome Web Store in web-ext-artifacts/
 ```

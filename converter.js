@@ -37,6 +37,10 @@
     highlight: true,
     hoverOriginal: true,
     volumeSource: 'auto',
+    // Advanced: one rule per source unit, e.g. { mi: 'km', ft: 'cm', f: 'off' }.
+    // Rules beat the category and system settings. Only non-default entries are stored.
+    unitRulesEnabled: false,
+    unitTargets: Object.freeze({}),
     targets: Object.freeze({
       length: 'auto',
       weight: 'auto',
@@ -457,6 +461,14 @@
   }
 
   function resolveTarget(unit, baseValues, settings) {
+    // 1. Advanced per-unit rule ("miles -> km") — applies even within the same system.
+    if (settings.unitRulesEnabled && settings.unitTargets) {
+      const rule = settings.unitTargets[unit.id];
+      if (rule === 'off') return null;
+      const ruled = rule && BY_ID[rule];
+      if (ruled && ruled.cat === unit.cat && ruled !== unit) return ruled;
+    }
+    // 2. Category target, 3. global system.
     const pref = (settings.targets && settings.targets[unit.cat]) || 'auto';
     if (pref === 'off') return null;
     let target = pref !== 'auto' ? BY_ID[pref] : null;
@@ -569,6 +581,15 @@
     if (typeof raw.highlight === 'boolean') s.highlight = raw.highlight;
     if (typeof raw.hoverOriginal === 'boolean') s.hoverOriginal = raw.hoverOriginal;
     if (VOLUME_SOURCES.includes(raw.volumeSource)) s.volumeSource = raw.volumeSource;
+    if (typeof raw.unitRulesEnabled === 'boolean') s.unitRulesEnabled = raw.unitRulesEnabled;
+    if (raw.unitTargets && typeof raw.unitTargets === 'object') {
+      for (const [from, to] of Object.entries(raw.unitTargets)) {
+        const src = BY_ID[from];
+        if (!src || src.ambiguous) continue;
+        const dst = BY_ID[to];
+        if (to === 'off' || (dst && !dst.ambiguous && dst.cat === src.cat && dst !== src)) s.unitTargets[from] = to;
+      }
+    }
     if (raw.targets && typeof raw.targets === 'object') {
       for (const { id } of CATEGORIES) {
         const t = raw.targets[id];

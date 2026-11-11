@@ -19,7 +19,8 @@
     enabledEl.checked = settings.enabled;
     const system = UC.SYSTEM_NAMES[settings.system];
     summaryEl.textContent = settings.enabled
-      ? `${system} · ${MODE_NAMES[settings.displayMode]}`
+      ? `${system} · ${MODE_NAMES[settings.displayMode]}${
+        settings.unitRulesEnabled && Object.keys(settings.unitTargets).length ? ' · custom rules' : ''}`
       : 'Paused on all pages';
   }
 

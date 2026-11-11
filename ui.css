@@ -208,5 +208,24 @@ textarea {
   min-height: 3em;
 }
 
+.rules { display: grid; gap: 8px; }
+.rules-disabled { opacity: 0.55; }
+.rule-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 0 12px;
+}
+.rule-group summary {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  cursor: pointer;
+  font-weight: 500;
+}
+.rule-group[open] summary { border-bottom: 1px solid var(--border); }
+.rule-count { color: var(--accent); font-weight: 500; font-size: 13px; }
+select.rule-set { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
 .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .status { color: var(--muted); font-size: 13px; transition: opacity 0.3s; }

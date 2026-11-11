@@ -101,6 +101,24 @@
       <table class="targets"><tbody id="targets"></tbody></table>
     </section>
 
+    <section class="card" aria-labelledby="rules-heading">
+      <div class="field">
+        <h2 id="rules-heading">Advanced: convert each unit individually</h2>
+        <label class="switch" title="Use per-unit rules">
+          <input type="checkbox" id="unitRulesEnabled" aria-labelledby="rules-heading">
+          <span class="track"></span>
+        </label>
+      </div>
+      <p class="muted">Pick exactly what each unit becomes — e.g. miles → kilometres, feet → centimetres, °F → off.
+        A rule always wins over the settings above, even within the same system (km → m).
+        Units left on “Default” follow the category and system settings.</p>
+      <div id="rules" class="rules"></div>
+      <div class="actions">
+        <span class="muted" id="rules-summary"></span>
+        <button class="btn" id="clear-rules" type="button">Clear all rules</button>
+      </div>
+    </section>
+
     <section class="card" aria-labelledby="preview-heading">
       <h2 id="preview-heading">Live preview</h2>
       <label for="sample" class="muted">Edit the sample text to test detection:</label>

@@ -222,3 +222,38 @@ test('UK system uses °C for temperatures', () => {
   const ukF = UC.normalizeSettings({ system: 'uk', targets: { temperature: 'f' } });
   assert.deepEqual(convertWith('highs of 75°F, 20 °C', ukF), [['20 °C', '68°F']]);
 });
+
+// ---- Advanced per-unit rules ---------------------------------------------------------
+const rules = (unitTargets, extra = {}) =>
+  UC.normalizeSettings({ system: 'metric', unitRulesEnabled: true, unitTargets, ...extra });
+
+test('per-unit rule picks the exact target unit', () => {
+  const s = rules({ mi: 'm', ft: 'cm', lb: 'g' });
+  assert.deepEqual(convertWith('10 miles, 6 ft, 2 lb, 3 in', s), [
+    ['10 miles', '16,093.44 m'], ['6 ft', '182.88 cm'], ['2 lb', '907.18 g'], ['3 in', '7.62 cm'],
+  ]);
+});
+
+test('per-unit "off" switches a single unit off', () => {
+  assert.deepEqual(convertWith('10 miles and 6 ft', rules({ mi: 'off' })), [['6 ft', '1.83 m']]);
+});
+
+test('per-unit rules beat category targets and work within the same system', () => {
+  const s = rules({ km: 'm', in: 'ft' }, { targets: { length: 'cm' } });
+  assert.deepEqual(convertWith('5 km, 24 in, 10 mi', s), [['5 km', '5,000 m'], ['24 in', '2 ft'], ['10 mi', '1,609,344 cm']]);
+});
+
+test('per-unit rules apply to compounds and resolved temperatures', () => {
+  const s = rules({ ft: 'in', f: 'off', c: 'f' });
+  assert.deepEqual(convertWith('He is 5\'10", 75°F today, highs 20 °C', s), [['5\'10"', '70 in'], ['20 °C', '68°F']]);
+});
+
+test('rules are ignored while the advanced switch is off', () => {
+  const s = UC.normalizeSettings({ system: 'metric', unitRulesEnabled: false, unitTargets: { mi: 'm' } });
+  assert.deepEqual(convertWith('10 miles', s), [['10 miles', '16.09 km']]);
+});
+
+test('normalizeSettings drops invalid per-unit rules', () => {
+  const s = UC.normalizeSettings({ unitTargets: { mi: 'kg', ft: 'ft', zz: 'm', deg: 'c', in: 'cm', lb: 'off' } });
+  assert.deepEqual(s.unitTargets, { in: 'cm', lb: 'off' });
+});
