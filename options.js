@@ -12,6 +12,8 @@
     enabled: $('enabled'),
     precision: $('precision'),
     highlight: $('highlight'),
+    hoverOriginal: $('hoverOriginal'),
+    volumeSource: $('volumeSource'),
     targets: $('targets'),
     sample: $('sample'),
     preview: $('preview'),
@@ -38,12 +40,18 @@
 
     select.appendChild(new Option('Auto — follow preferred system', 'auto'));
     select.appendChild(new Option('Don’t convert this category', 'off'));
-    for (const sys of UC.SYSTEMS) {
+    const GROUPS = [
+      ['metric', 'Always convert to (metric)'],
+      ['imperial', 'Always convert to (imperial — US & UK)'],
+      ['us', 'Always convert to (US customary)'],
+      ['uk', 'Always convert to (UK imperial)'],
+    ];
+    for (const [sys, title] of GROUPS) {
+      const units = UC.UNITS.filter((u) => u.cat === cat.id && u.sys === sys && !u.ambiguous);
+      if (!units.length) continue;
       const group = document.createElement('optgroup');
-      group.label = sys === 'metric' ? 'Always convert to (metric)' : 'Always convert to (imperial)';
-      for (const u of UC.UNITS) {
-        if (u.cat === cat.id && u.sys === sys) group.appendChild(new Option(`${u.name} — ${u.label}`, u.id));
-      }
+      group.label = title;
+      for (const u of units) group.appendChild(new Option(`${u.name} — ${u.label}`, u.id));
       select.appendChild(group);
     }
     selects[cat.id] = select;
@@ -56,6 +64,8 @@
   function render() {
     form.enabled.checked = settings.enabled;
     form.highlight.checked = settings.highlight;
+    form.hoverOriginal.checked = settings.hoverOriginal;
+    form.volumeSource.value = settings.volumeSource;
     form.precision.value = String(settings.precision);
     for (const el of document.querySelectorAll('input[name="system"]')) el.checked = el.value === settings.system;
     for (const el of document.querySelectorAll('input[name="displayMode"]')) el.checked = el.value === settings.displayMode;
@@ -73,6 +83,8 @@
       displayMode: checked('displayMode')?.value,
       precision: Number(form.precision.value),
       highlight: form.highlight.checked,
+      hoverOriginal: form.hoverOriginal.checked,
+      volumeSource: form.volumeSource.value,
       targets,
     });
   }
@@ -82,16 +94,21 @@
     const previewSettings = { ...settings, enabled: true };
     const frag = document.createDocumentFragment();
     let total = 0;
+    const volumeStandard = UC.resolveVolumeStandard(settings.volumeSource, { lang: navigator.language });
     text.split('\n').forEach((line, i) => {
       if (i) frag.appendChild(document.createTextNode('\n'));
-      const matches = UC.findConversions(line, previewSettings, { locale: navigator.language });
+      const matches = UC.findConversions(line, previewSettings, {
+        locale: navigator.language,
+        volumeStandard,
+        getContext: () => text,
+      });
       total += matches.length;
       frag.appendChild(UC.renderMatches(document, line, matches, previewSettings));
     });
     form.preview.replaceChildren(frag);
     form.preview.title = `${total} conversion${total === 1 ? '' : 's'}`;
-    if (settings.displayMode === 'annotate') tooltip.detach();
-    else tooltip.attach();
+    if (settings.displayMode === 'tooltip' || settings.hoverOriginal) tooltip.attach();
+    else tooltip.detach();
   }
 
   function flashStatus(message) {

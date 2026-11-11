@@ -14,8 +14,12 @@
   // ---------------------------------------------------------------------------
 
   const STORAGE_KEY = 'unitconvSettings';
-  const SYSTEMS = ['metric', 'imperial'];
+  // 'imperial' = US customary, 'uk' = British imperial (UK pints, gallons, fl oz).
+  const SYSTEMS = ['metric', 'imperial', 'uk'];
+  const SYSTEM_NAMES = { metric: 'Metric', imperial: 'US customary', uk: 'UK imperial' };
   const DISPLAY_MODES = ['annotate', 'replace', 'tooltip'];
+  // How to read an unqualified "gallon", "pint", "quart" or "fl oz" on a page.
+  const VOLUME_SOURCES = ['auto', 'us', 'uk'];
 
   const CATEGORIES = [
     { id: 'length', name: 'Length / distance' },
@@ -31,6 +35,8 @@
     displayMode: 'annotate',
     precision: 2,
     highlight: true,
+    hoverOriginal: true,
+    volumeSource: 'auto',
     targets: Object.freeze({
       length: 'auto',
       weight: 'auto',
@@ -59,6 +65,9 @@
   }
 
   const SQ = String.raw`(?:[Ss]q|SQ)\.?\s?`;
+  // "5 US gallons" / "2 UK pints", "2 imperial pints", "3 imp. gal"
+  const USP = String.raw`(?:(?:US|U\.S\.)\s?)?`;
+  const UKP = String.raw`(?:UK|U\.K\.|[Ii]mperial|IMPERIAL|[Ii]mp\.?|IMP\.?)\s?`;
 
   // Order matters only for readability/priority: more specific units first.
   // `factor` converts 1 unit to the category base (m, g, mL, m²).
@@ -85,28 +94,42 @@
     { id: 'f', cat: 'temperature', sys: 'imperial', label: '°F', attach: true, name: 'Fahrenheit (°F)',
       toBase: (v) => ((v - 32) * 5) / 9, fromBase: (c) => (c * 9) / 5 + 32,
       forms: [String.raw`[°º˚]\s?F(?:ahrenheit)?`, '℉', String.raw`(?:[Dd]egrees?|DEGREES?)\s+(?:F|[Ff]ahrenheit)`,
-        String.raw`[Dd]eg\.?\s?F`, W('fahrenheit')] },
+        String.raw`[Dd]eg\.?\s?F`, W('fahrenheit'), 'F'] },
     { id: 'c', cat: 'temperature', sys: 'metric', label: '°C', attach: true, name: 'Celsius (°C)',
       toBase: (v) => v, fromBase: (c) => c,
       forms: [String.raw`[°º˚]\s?C(?:elsius|entigrade)?`, '℃',
         String.raw`(?:[Dd]egrees?|DEGREES?)\s+(?:C|[Cc]elsius|[Cc]entigrade)`, String.raw`[Dd]eg\.?\s?C`,
-        W('celsius', 'centigrade')] },
+        W('celsius', 'centigrade'), 'C'] },
+    // A bare "75°" or "75 degrees": resolved to °F/°C from the surrounding text, or skipped.
+    { id: 'deg', cat: 'temperature', sys: null, ambiguous: true, label: '°', name: 'Degrees (unspecified)',
+      forms: ['[°º˚]', W('degrees', 'degree')] },
 
-    // ---- Volume (base: millilitre). Imperial = US customary.
-    { id: 'floz', cat: 'volume', sys: 'imperial', factor: 29.5735295625, label: 'fl oz', name: 'Fluid ounces (US)',
-      forms: [String.raw`[Ff]l\.?\s?oz`, String.raw`FL\.?\s?OZ`, W('fluid ounces', 'fluid ounce')] },
-    { id: 'tbsp', cat: 'volume', sys: 'imperial', factor: 14.78676478125, label: 'tbsp', name: 'Tablespoons (US)',
+    // ---- Volume (base: millilitre)
+    // UK imperial measures. Must be written with a qualifier ("UK", "imperial", "imp.")
+    // unless the page itself is detected as British (see `volumeStandard`).
+    { id: 'ukfloz', cat: 'volume', sys: 'uk', factor: 28.4130625, label: 'fl oz', qualified: 'UK fl oz', name: 'Fluid ounces (UK)',
+      forms: [String.raw`${UKP}(?:[Ff]l\.?\s?oz|FL\.?\s?OZ|[Ff]luid\s+ounces?)`] },
+    { id: 'ukpt', cat: 'volume', sys: 'uk', factor: 568.26125, label: 'pt', qualified: 'UK pt', name: 'Pints (UK)',
+      forms: [String.raw`${UKP}(?:[Pp]ints?|PINTS?|pts?)`] },
+    { id: 'ukqt', cat: 'volume', sys: 'uk', factor: 1136.5225, label: 'qt', qualified: 'UK qt', name: 'Quarts (UK)',
+      forms: [String.raw`${UKP}(?:[Qq]uarts?|QUARTS?|qts?)`] },
+    { id: 'ukgal', cat: 'volume', sys: 'uk', factor: 4546.09, label: 'gal', qualified: 'UK gal', name: 'Gallons (UK)',
+      forms: [String.raw`${UKP}(?:[Gg]allons?|GALLONS?|gals?)`] },
+    // US customary. Unqualified fl oz / pt / qt / gal are US unless the page is British.
+    { id: 'floz', cat: 'volume', sys: 'us', ukTwin: 'ukfloz', factor: 29.5735295625, label: 'fl oz', qualified: 'US fl oz',
+      name: 'Fluid ounces (US)', forms: [`${USP}(?:[Ff]l\\.?\\s?oz|FL\\.?\\s?OZ|${W('fluid ounces', 'fluid ounce')})`] },
+    { id: 'tbsp', cat: 'volume', sys: 'imperial', factor: 14.78676478125, label: 'tbsp', name: 'Tablespoons',
       forms: ['[Tt]bsps?', 'TBSPS?', '[Tt]bs', 'TBS', W('tablespoons', 'tablespoon')] },
-    { id: 'tsp', cat: 'volume', sys: 'imperial', factor: 4.92892159375, label: 'tsp', name: 'Teaspoons (US)',
+    { id: 'tsp', cat: 'volume', sys: 'imperial', factor: 4.92892159375, label: 'tsp', name: 'Teaspoons',
       forms: ['[Tt]sps?', 'TSPS?', W('teaspoons', 'teaspoon')] },
     { id: 'cup', cat: 'volume', sys: 'imperial', factor: 236.5882365, label: 'cup', plural: 'cups', name: 'Cups (US)',
       forms: [W('cups', 'cup')] },
-    { id: 'pt', cat: 'volume', sys: 'imperial', factor: 473.176473, label: 'pt', name: 'Pints (US)',
-      forms: [W('pints', 'pint'), 'pt'] },
-    { id: 'qt', cat: 'volume', sys: 'imperial', factor: 946.352946, label: 'qt', name: 'Quarts (US)',
-      forms: ['qts?', 'QTS?', W('quarts', 'quart')] },
-    { id: 'gal', cat: 'volume', sys: 'imperial', factor: 3785.411784, label: 'gal', name: 'Gallons (US)',
-      forms: ['gals?', 'GALS?', W('gallons', 'gallon')] },
+    { id: 'pt', cat: 'volume', sys: 'us', ukTwin: 'ukpt', factor: 473.176473, label: 'pt', qualified: 'US pt',
+      name: 'Pints (US)', forms: [`${USP}(?:${W('pints', 'pint')})`, `${USP}pt`] },
+    { id: 'qt', cat: 'volume', sys: 'us', ukTwin: 'ukqt', factor: 946.352946, label: 'qt', qualified: 'US qt',
+      name: 'Quarts (US)', forms: [`${USP}(?:qts?|QTS?|${W('quarts', 'quart')})`] },
+    { id: 'gal', cat: 'volume', sys: 'us', ukTwin: 'ukgal', factor: 3785.411784, label: 'gal', qualified: 'US gal',
+      name: 'Gallons (US)', forms: [`${USP}(?:gals?|GALS?|${W('gallons', 'gallon')})`] },
     { id: 'ml', cat: 'volume', sys: 'metric', factor: 1, label: 'mL', name: 'Millilitres',
       forms: ['ml', 'mL', 'ML', W('milliliters', 'milliliter', 'millilitres', 'millilitre')] },
     { id: 'l', cat: 'volume', sys: 'metric', factor: 1000, label: 'L', name: 'Litres',
@@ -117,6 +140,8 @@
       forms: ['ozs?', 'OZ', W('ounces', 'ounce')] },
     { id: 'lb', cat: 'weight', sys: 'imperial', factor: 453.59237, label: 'lb', name: 'Pounds',
       forms: ['lbs?', 'Lbs?', 'LBS?', W('pounds', 'pound')] },
+    { id: 'st', cat: 'weight', sys: 'imperial', factor: 6350.29318, label: 'st', name: 'Stone (14 lb)',
+      forms: [W('stone'), 'st'] },
     { id: 'mg', cat: 'weight', sys: 'metric', factor: 0.001, label: 'mg', name: 'Milligrams',
       forms: ['mg', W('milligrams', 'milligram')] },
     { id: 'kg', cat: 'weight', sys: 'metric', factor: 1000, label: 'kg', name: 'Kilograms',
@@ -154,11 +179,26 @@
   const AUTO = {
     length: { metric: [['mm', 0], ['cm', 1], ['m', 1], ['km', 1]], imperial: [['in', 0], ['ft', 3], ['mi', 0.25]] },
     weight: { metric: [['mg', 0], ['g', 1], ['kg', 1]], imperial: [['oz', 0], ['lb', 1]] },
-    volume: { metric: [['ml', 0], ['l', 1]], imperial: [['tsp', 0], ['tbsp', 1], ['floz', 2], ['qt', 1], ['gal', 1]] },
+    volume: { metric: [['ml', 0], ['l', 1]], imperial: [['tsp', 0], ['tbsp', 1], ['floz', 2], ['qt', 1], ['gal', 1]],
+      uk: [['tsp', 0], ['tbsp', 1], ['ukfloz', 2], ['ukpt', 1], ['ukgal', 1]] },
     temperature: { metric: [['c', 0]], imperial: [['f', 0]] },
     area: { metric: [['sqcm', 0], ['sqm', 1], ['ha', 0.1], ['sqkm', 1]],
       imperial: [['sqin', 0], ['sqft', 1], ['acre', 0.5], ['sqmi', 1]] },
   };
+  // UK imperial shares every list with US customary except volume.
+  for (const cat of Object.keys(AUTO)) if (!AUTO[cat].uk) AUTO[cat].uk = AUTO[cat].imperial;
+
+  /** Does a unit of system `unitSys` already belong to the user's `system`? */
+  function belongsTo(unitSys, system) {
+    if (system === 'metric') return unitSys === 'metric';
+    if (unitSys === 'imperial') return true; // shared by US and UK (ft, lb, °F, cups…)
+    return system === 'uk' ? unitSys === 'uk' : unitSys === 'us';
+  }
+
+  /** The user-facing system a target unit implies. */
+  function systemOfUnit(u) {
+    return u.sys === 'uk' ? 'uk' : u.sys === 'metric' ? 'metric' : 'imperial';
+  }
 
   // ---------------------------------------------------------------------------
   // Detection regex
@@ -181,10 +221,12 @@
   // Feet + inches compounds: "5 ft 10 in", "5 feet 10 inches", "5'10\"", "6′2″", "6'2"
   const FI_WORDS = String.raw`(?<fiFt>\d+(?:\.\d+)?)\s?(?:[Ff]eet|[Ff]oot|ft\.?|Ft\.?|FT\.?)[\s,]{0,2}(?:and\s+)?(?<fiIn>${INQ})\s?(?:[Ii]nch(?:es)?|INCH(?:ES)?|in|["″”])`;
   const FI_SYMBOLS = String.raw`(?<fsFt>\d{1,2})\s?['′’]\s?(?<fsIn>${INQ})(?:\s?["″”])?`;
+  // Stone + pounds (UK body weight): "11 st 4 lb", "11st 4lb", "11 stone 4 pounds"
+  const ST_LB = String.raw`(?<stSt>\d{1,2})\s?(?:st|[Ss]tone|STONE)[\s,]{0,2}(?:and\s+)?(?<stLb>\d{1,2}(?:\.\d+)?)\s?(?:lbs?|LBS?|[Pp]ounds?)`;
 
   const MAIN_SRC =
-    String.raw`(?<![\p{L}\p{N}_.,:\/⁄])` +
-    `(?:${FI_WORDS}|${FI_SYMBOLS}|` +
+    String.raw`(?<![\p{L}\p{N}_.,:\/⁄°º˚])` +
+    `(?:${FI_WORDS}|${FI_SYMBOLS}|${ST_LB}|` +
     `(?<q1>[-−]?${QTY})(?:(?<sep>${SEP})(?<q2>[-−]?${QTY})|(?<dims>(?:\\s*[x×]\\s*${QTY}){1,2}))?` +
     String.raw`(?<gap>\s{0,2}|-)(?<unit>${UNIT_ALT}))` +
     String.raw`(?![\p{L}\p{N}_])`;
@@ -205,7 +247,62 @@
   const MATH_AFTER_RE = /^\s*(?:[*÷=^]|[+−-]\s*[\d(](?![\d.,/ ]*\s?[\p{L}°]))/u;
   const RATE_AFTER_RE = /^\s*(?:\/\s*\p{L}|per\b|an?\s+hour\b)/iu;
   const SYMBOL_UNITS = new Set(['"', '”', '″', "'", '’', '′']);
-  const YEAR_SENSITIVE = new Set(['in', 'm', 'mi', 'l', 'L', 'g', 'pt', 'ha', ...SYMBOL_UNITS]);
+  const YEAR_SENSITIVE = new Set(['in', 'm', 'mi', 'l', 'L', 'g', 'pt', 'ha', 'st', 'F', 'C', ...SYMBOL_UNITS]);
+
+  // ---- Temperature disambiguation ------------------------------------------
+  // Words that make a bare "75F" / "20 C" / "75°" plausibly a temperature.
+  const TEMP_CONTEXT_RE =
+    /\b(?:temp(?:erature)?s?|weather|forecast|highs?|lows?|heat(?:wave)?|hot(?:ter|test)?|cold(?:er|est)?|warm(?:er|est|ing)?|cool(?:er|est|ing)?|chilly|freez\w*|frost\w*|thaw\w*|oven|bak(?:e|ed|ing)|roast\w*|preheat\w*|grill\w*|degrees?|deg|thermostat|thermometer|fever|climate|celsius|centigrade|fahrenheit|feels\s+like|humid\w*|sunny|cloudy|showers?|rain\w*|snow\w*|wind\s?chill|dew\s?point|boil\w*|simmer\w*|fridge|freezer|refrigerat\w*)\b|[°º˚℃℉]/i;
+  // Words right before the number that make a bare letter a label, not a unit: "Apartment 3C", "size 4F".
+  const LETTER_LABEL_BEFORE_RE =
+    /\b(?:apartment|apt|flat|suite|unit|room|floor|level|seat|row|gate|platform|section|grade|class|size|type|vitamin|key|chord|model|version|rev|form|page|figure|fig|table|exhibit|cup|bra)\.?\s*#?\s*$/i;
+  // Explicit °F/°C anywhere in the text tell us what a bare "75°" or "75 degrees" means.
+  const TEMP_HINT_RE = /[°º˚]\s?([FC])(?![a-z])|([℉℃])|([Ff]ahrenheit|[Cc]elsius|[Cc]entigrade)|\d\s?([FC])\b/g;
+  // A bare degree that is really an angle or a coordinate.
+  const ANGLE_AFTER_RE = /^\s*(?:angle|north|south|east|west|[NSEW]\b|lat|long|latitude|longitude|rotation|turn|incline|slope|arc|tilt|pitch|bend|heading|bearing|field\s+of\s+view|fov|camber)/i;
+  const ANGLE_BEFORE_RE = /(?:rotat\w*|turn\w*|angle[sd]?|tilt\w*|inclin\w*|slope[sd]?|bearing|heading|pitch|bend\w*|lean\w*|swivel\w*|spin\w*|arc|lat(?:itude)?|long(?:itude)?)\s*(?:by|of|to|at|is|=|:)?\s*(?:about|around|approx\.?|~)?\s*$/i;
+  const PLAUSIBLE = { f: [-130, 1000], c: [-90, 550] };
+
+  /** Finds the explicit F/C mention nearest to `pos` in `str` ('f' | 'c' | null). */
+  function nearestTemperatureHint(str, pos) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const h of str.matchAll(TEMP_HINT_RE)) {
+      const raw = h[1] || h[2] || h[3] || h[4];
+      const isF = /^[F℉]|^[Ff]ahrenheit/.test(raw);
+      const center = h.index + h[0].length / 2;
+      const dist = Math.abs(center - pos);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = isF ? 'f' : 'c';
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Decides what an ambiguous temperature means.
+   * - bare "F"/"C" ("75F", "20 C"): accepted only with temperature words around it.
+   * - bare "75°" / "75 degrees": resolved from the nearest explicit °F/°C mention
+   *   (same sentence first, then the surrounding element); angles are rejected.
+   * Returns the resolved unit id, or null to skip the match.
+   */
+  function resolveTemperature(p, before, after, opts) {
+    const ctx = () => (opts && typeof opts.getContext === 'function' ? opts.getContext() || '' : '');
+    if (p.unit.ambiguous) {
+      if (ANGLE_AFTER_RE.test(after) || ANGLE_BEFORE_RE.test(before)) return null;
+      let hint = nearestTemperatureHint(`${before} ${after}`, before.length);
+      if (!hint) {
+        const c = ctx();
+        if (c) hint = nearestTemperatureHint(c, c.length / 2);
+      }
+      return hint;
+    }
+    // Bare letter
+    if (p.gap === '-' || LETTER_LABEL_BEFORE_RE.test(before)) return null;
+    if (TEMP_CONTEXT_RE.test(before) || TEMP_CONTEXT_RE.test(after) || TEMP_CONTEXT_RE.test(ctx())) return p.unit.id;
+    return null;
+  }
   const IN_NEXT_OK_RE =
     /^\s+(?:tall|wide|long|deep|high|thick|across|diameter|dia\b|screen|display|monitor|tv\b|television|laptop|tablet|phone|pan|skillet|pot|wheels?|tires?|tyres?|rims?|pipe|blade|bar\b|board|square|round|x\b|by\b)/i;
   const MILLION_NEXT_RE =
@@ -248,7 +345,7 @@
     return null;
   }
 
-  function parseMatch(m) {
+  function parseMatch(m, opts) {
     const g = m.groups;
     if (g.fiFt !== undefined || g.fsFt !== undefined) {
       const ft = parseFloat(g.fiFt ?? g.fsFt);
@@ -256,8 +353,16 @@
       if (!Number.isFinite(ft) || !Number.isFinite(inch) || inch >= 12) return null;
       return { kind: 'single', unit: BY_ID.ft, values: [ft + inch / 12], unitStr: 'ft', gap: '', q1: String(ft), compound: true };
     }
-    const unit = resolveUnit(g.unit);
+    if (g.stSt !== undefined) {
+      const st = parseFloat(g.stSt);
+      const lb = parseFloat(g.stLb);
+      if (!(lb < 14)) return null;
+      return { kind: 'single', unit: BY_ID.st, values: [st + lb / 14], unitStr: 'st', gap: '', q1: g.stSt, compound: true };
+    }
+    let unit = resolveUnit(g.unit);
     if (!unit) return null;
+    // Unqualified gallon/pint/quart/fl oz on a British page means the UK measure.
+    if (unit.ukTwin && opts && opts.volumeStandard === 'uk' && !/^U\.?S/.test(g.unit)) unit = BY_ID[unit.ukTwin];
     const values = [parseQty(g.q1)];
     let kind = 'single';
     if (g.q2 !== undefined) {
@@ -275,7 +380,7 @@
   // Context validation (false-positive filters)
   // ---------------------------------------------------------------------------
 
-  function validate(text, m, p) {
+  function validate(text, m, p, opts) {
     const start = m.index;
     const end = start + m[0].length;
     const before = text.slice(Math.max(0, start - 60), start);
@@ -302,9 +407,32 @@
       if (u === 'in' && /^\s+[\p{L}\p{N}]/u.test(after) && !IN_NEXT_OK_RE.test(after)) return false; // "5 in the box"
       if (u === 'm' && p.gap === '' && MILLION_NEXT_RE.test(after)) return false; // "5m views"
       if (u === 'pt' && (!/^\s+$/.test(p.gap) || POINT_NEXT_RE.test(after))) return false; // "12pt font"
+      if (u === 'st') {
+        // "1st", "21st" are ordinals; "11st" / "11 st" is stone.
+        if (p.gap === '-' || (p.gap === '' && /(?:^|[^1])1$/.test(p.q1))) return false;
+        if (/^\s*[A-Z]/.test(after) || !p.values.every((v) => v > 0 && v <= 60)) return false; // "5 St Mary's"
+      }
+
+      // Temperatures written without an explicit °F/°C need their meaning worked out.
+      if (p.unit.cat === 'temperature' && (p.unit.ambiguous || u === 'F' || u === 'C')) {
+        const id = resolveTemperature(p, before, after, opts);
+        if (!id) return false;
+        p.unit = BY_ID[id];
+        const [lo, hi] = PLAUSIBLE[id];
+        if (!p.values.every((v) => v >= lo && v <= hi)) return false;
+      }
     }
+    // "40°F below zero" is really -40°F; an annotation inside that phrase would mislead.
+    if (p.unit.cat === 'temperature' && /^\s*below\s+(?:zero|freezing)\b/i.test(after)) return false;
+    // "10°F warmer", "rose by 5 °C": a temperature *difference* (no 32° offset).
+    if (p.unit.cat === 'temperature' && (DELTA_AFTER_RE.test(after) || DELTA_BEFORE_RE.test(before))) p.delta = true;
     return true;
   }
+
+  const DELTA_AFTER_RE =
+    /^\s*(?:warmer|colder|cooler|hotter|higher|lower|(?:above|below)(?!\s+(?:zero|freezing))|more|less|of\s+(?:warming|cooling|difference|change)|difference|change|swing|rise|drop|increase|decrease)\b/i;
+  const DELTA_BEFORE_RE =
+    /\b(?:by|up|down|rise\s+of|drop\s+of|increase\s+of|decrease\s+of|change\s+of|swing\s+of|difference\s+of|warming\s+of|cooling\s+of|plus|minus)\s*(?:about|around|nearly|almost|roughly|another|an?\s+extra)?\s*$|[+±]\s*$/i;
 
   // ---------------------------------------------------------------------------
   // Conversion + formatting
@@ -333,9 +461,15 @@
     if (pref === 'off') return null;
     let target = pref !== 'auto' ? BY_ID[pref] : null;
     if (target && target.cat !== unit.cat) target = null;
-    if (target) return target.sys === unit.sys ? null : target; // never convert within the same system
-    const system = SYSTEMS.includes(settings.system) ? settings.system : DEFAULT_SETTINGS.system;
-    if (unit.sys === system) return null;
+    // Never convert within the same system (e.g. km -> m for a metric user).
+    if (target) return belongsTo(unit.sys, systemOfUnit(target)) ? null : target;
+    let system = SYSTEMS.includes(settings.system) ? settings.system : DEFAULT_SETTINGS.system;
+    // The UK measures temperature in °C alongside miles, pints and stone.
+    if (system === 'uk' && unit.cat === 'temperature') system = 'metric';
+    if (belongsTo(unit.sys, system)) return null;
+    // US <-> UK volume: keep the same kind of measure (gallon -> UK gallon).
+    if (unit.ukTwin && system === 'uk') return BY_ID[unit.ukTwin];
+    if (unit.sys === 'uk' && system === 'imperial') return UNITS.find((u) => u.ukTwin === unit.id) || null;
     const maxAbs = Math.max(...baseValues.map(Math.abs));
     return pickAutoUnit(unit.cat, system, maxAbs);
   }
@@ -364,18 +498,25 @@
     return getFormatter(locale, opts).format(v);
   }
 
-  function labelFor(u, formatted) {
+  function labelFor(u, formatted, source) {
+    // US <-> UK volume conversions must say which gallon/pint is meant: "1 gal (0.83 UK gal)".
+    if (u.qualified && (source.sys === 'us' || source.sys === 'uk')) return u.qualified;
     return u.plural && formatted !== '1' ? u.plural : u.label;
   }
 
+  // Temperature differences scale without the 32° offset: Δ1 °F = Δ5/9 °C.
+  const DELTA_FACTOR = { f: 5 / 9, c: 1 };
+
   function convertParsed(p, settings, locale) {
-    const base = p.values.map((v) => toBase(p.unit, v));
+    const toB = (u, v) => (p.delta ? v * DELTA_FACTOR[u.id] : toBase(u, v));
+    const fromB = (u, b) => (p.delta ? b / DELTA_FACTOR[u.id] : fromBase(u, b));
+    const base = p.values.map((v) => toB(p.unit, v));
     const target = resolveTarget(p.unit, base, settings);
     if (!target) return null;
     const precision = p.unit.cat === 'temperature' ? Math.min(settings.precision, 1) : settings.precision;
-    const nums = base.map((b) => formatNumber(fromBase(target, b), precision, locale));
+    const nums = base.map((b) => formatNumber(fromB(target, b), precision, locale));
     const joiner = p.kind === 'range' ? '–' : p.kind === 'dims' ? ' × ' : '';
-    const label = labelFor(target, nums[nums.length - 1]);
+    const label = labelFor(target, nums[nums.length - 1], p.unit);
     return { target, text: nums.join(joiner) + (target.attach ? '' : ' ') + label };
   }
 
@@ -389,8 +530,8 @@
     const s = settings || DEFAULT_SETTINGS;
     const locale = (options && options.locale) || 'en-US';
     for (const m of text.matchAll(MAIN_RE)) {
-      const parsed = parseMatch(m);
-      if (!parsed || !validate(text, m, parsed)) continue;
+      const parsed = parseMatch(m, options);
+      if (!parsed || !validate(text, m, parsed, options)) continue;
       const conv = convertParsed(parsed, s, locale);
       if (!conv) continue;
       out.push({
@@ -426,13 +567,27 @@
     if (DISPLAY_MODES.includes(raw.displayMode)) s.displayMode = raw.displayMode;
     if (Number.isInteger(raw.precision) && raw.precision >= 0 && raw.precision <= 4) s.precision = raw.precision;
     if (typeof raw.highlight === 'boolean') s.highlight = raw.highlight;
+    if (typeof raw.hoverOriginal === 'boolean') s.hoverOriginal = raw.hoverOriginal;
+    if (VOLUME_SOURCES.includes(raw.volumeSource)) s.volumeSource = raw.volumeSource;
     if (raw.targets && typeof raw.targets === 'object') {
       for (const { id } of CATEGORIES) {
         const t = raw.targets[id];
-        if (t === 'auto' || t === 'off' || (BY_ID[t] && BY_ID[t].cat === id)) s.targets[id] = t;
+        if (t === 'auto' || t === 'off' || (BY_ID[t] && BY_ID[t].cat === id && !BY_ID[t].ambiguous)) s.targets[id] = t;
       }
     }
     return s;
+  }
+
+  /**
+   * Resolves the `volumeSource` setting to 'us' | 'uk' for one page.
+   * 'auto' reads British pages (.uk / .ie / .gb domains, or lang="en-GB" / "en-IE") as UK.
+   */
+  function resolveVolumeStandard(setting, page) {
+    if (setting === 'us' || setting === 'uk') return setting;
+    const host = String((page && page.hostname) || '').toLowerCase();
+    const lang = String((page && page.lang) || '');
+    if (/\.(?:uk|gb|ie)$/.test(host) || /^en[-_](?:GB|UK|IE)\b/i.test(lang)) return 'uk';
+    return 'us';
   }
 
   /** Storage wrapper: prefers storage.sync, falls back to storage.local. */
@@ -474,18 +629,28 @@
     const mode = settings.displayMode;
     const span = doc.createElement('span');
     span.className = `uc-unit uc-mode-${mode}${settings.highlight ? ' uc-hl' : ''}`;
+    // The text exactly as the page wrote it — used for the hover card and for reverting.
     span.dataset.ucOriginal = match.original;
+    span.dataset.ucConverted = match.converted;
+    // Tooltip mode always needs the hover card; other modes show it unless turned off.
+    if (mode === 'tooltip' || settings.hoverOriginal !== false) span.dataset.ucTip = mode;
     if (mode === 'replace') {
-      span.textContent = match.converted;
-      span.dataset.ucTip = `Original: ${match.original}`;
+      const changed = doc.createElement('span');
+      changed.className = 'uc-changed';
+      changed.textContent = match.converted;
+      span.appendChild(changed);
     } else if (mode === 'tooltip') {
       span.textContent = match.original;
-      span.dataset.ucTip = match.converted;
     } else {
       span.appendChild(doc.createTextNode(match.original));
       const note = doc.createElement('span');
       note.className = 'uc-annotation';
-      note.textContent = ` (${match.converted})`;
+      note.appendChild(doc.createTextNode(' ('));
+      const changed = doc.createElement('span');
+      changed.className = 'uc-changed';
+      changed.textContent = match.converted;
+      note.appendChild(changed);
+      note.appendChild(doc.createTextNode(')'));
       span.appendChild(note);
     }
     return span;
@@ -532,11 +697,29 @@
       tip.style.setProperty('left', `${Math.round(Math.max(4, left))}px`, 'important');
     }
 
+    function row(label, value, strong) {
+      const r = doc.createElement('span');
+      r.className = `uc-tip-row${strong ? ' uc-tip-strong' : ''}`;
+      const l = doc.createElement('span');
+      l.className = 'uc-tip-label';
+      l.textContent = label;
+      const v = doc.createElement('span');
+      v.className = 'uc-tip-value';
+      v.textContent = value;
+      r.append(l, v);
+      return r;
+    }
+
     function show(target) {
-      const text = target.dataset.ucTip;
-      if (!text) return;
+      const mode = target.dataset.ucTip;
+      const original = target.dataset.ucOriginal;
+      const converted = target.dataset.ucConverted;
+      if (!mode || original == null) return;
       const tip = ensure();
-      tip.textContent = text;
+      // Lead with whatever is *not* visible on the page.
+      const rows = [row('As written', original, mode !== 'tooltip'), row('Converted', converted, mode === 'tooltip')];
+      if (mode === 'tooltip') rows.reverse();
+      tip.replaceChildren(...rows);
       current = target;
       position(tip, target);
       tip.classList.add('uc-visible');
@@ -585,7 +768,10 @@
   const UnitConv = {
     STORAGE_KEY,
     SYSTEMS,
+    SYSTEM_NAMES,
     DISPLAY_MODES,
+    VOLUME_SOURCES,
+    resolveVolumeStandard,
     CATEGORIES,
     DEFAULT_SETTINGS,
     UNITS,

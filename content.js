@@ -40,6 +40,7 @@
   const locale = resolveLocale();
 
   let settings = UC.normalizeSettings();
+  let volumeStandard = 'us';
   let active = false;
   let observer = null;
   const pendingRoots = new Set();
@@ -171,12 +172,40 @@
   // Conversion
   // ---------------------------------------------------------------------------
 
+  const CONTEXT_BLOCKS = 'p,li,td,th,dd,dt,h1,h2,h3,h4,h5,h6,blockquote,figcaption,caption,label,section,article,div';
+  const MAX_CONTEXT_CHILDREN = 40;
+
+  /**
+   * Lazily returns the text around `node` (its nearest small block ancestor, up to
+   * three levels up). Only used to decide whether a bare "75F" or "75°" is a
+   * temperature, so it is computed at most once per node and only when needed.
+   */
+  function contextGetter(node) {
+    let cached;
+    return () => {
+      if (cached !== undefined) return cached;
+      cached = '';
+      let el = node.parentElement;
+      for (let depth = 0; el && depth < 3; depth++, el = el.parentElement) {
+        if (el === document.body || el.childElementCount > MAX_CONTEXT_CHILDREN) break;
+        if (el.matches(CONTEXT_BLOCKS) || depth === 2) {
+          const t = el.textContent;
+          if (t.length > node.data.length + 15) {
+            cached = t.slice(0, 600);
+            break;
+          }
+        }
+      }
+      return cached;
+    };
+  }
+
   function convertTextNode(node) {
     if (!node.isConnected) return;
     const parent = node.parentElement;
     if (!parent || parent.closest('.uc-unit')) return;
     const text = node.data;
-    const matches = UC.findConversions(text, settings, { locale });
+    const matches = UC.findConversions(text, settings, { locale, volumeStandard, getContext: contextGetter(node) });
     if (!matches.length) return;
     node.replaceWith(UC.renderMatches(document, text, matches, settings));
   }
@@ -197,7 +226,7 @@
     active = true;
     observer = new MutationObserver((records) => enqueueRecords(records));
     observer.observe(document.documentElement, OBSERVER_OPTIONS);
-    if (settings.displayMode !== 'annotate') tooltip.attach();
+    if (settings.displayMode === 'tooltip' || settings.hoverOriginal) tooltip.attach();
     enqueue(document.body || document.documentElement);
   }
 
@@ -213,6 +242,10 @@
 
   function apply(next) {
     settings = next;
+    volumeStandard = UC.resolveVolumeStandard(settings.volumeSource, {
+      hostname: location.hostname,
+      lang: document.documentElement.lang,
+    });
     stop();
     revertAll();
     if (settings.enabled) start();
@@ -223,6 +256,7 @@
     sendResponse({
       enabled: settings.enabled,
       count: document.querySelectorAll('span.uc-unit').length,
+      volumeStandard,
       pending: textQueue.length + pendingRoots.size,
     });
     return undefined;

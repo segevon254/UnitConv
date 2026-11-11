@@ -1,6 +1,11 @@
 /*
  * UnitConv — styles injected into web pages.
  * Class names are prefixed (uc-) and kept minimal so page layout is unaffected.
+ *
+ *   .uc-unit        wrapper around one detected measurement
+ *   .uc-changed     the text UnitConv wrote (converted value)
+ *   .uc-annotation  " (…)" added in inline-annotation mode
+ *   .uc-hl          highlighting is on
  */
 
 .uc-unit {
@@ -9,60 +14,103 @@
   white-space: inherit;
 }
 
-/* Inline annotation: "10 miles (16.09 km)" */
-.uc-unit .uc-annotation {
-  font: inherit;
-  font-style: normal;
-  opacity: 0.78;
-  white-space: nowrap;
-}
-
-.uc-unit.uc-hl .uc-annotation {
-  opacity: 1;
-  color: #1a73e8;
-}
-
-@media (prefers-color-scheme: dark) {
-  .uc-unit.uc-hl .uc-annotation {
-    color: #8ab4f8;
-  }
-}
-
-/* Replacement & tooltip modes: subtle dotted underline signals "hover me" */
-.uc-unit.uc-mode-replace,
-.uc-unit.uc-mode-tooltip {
+.uc-unit[data-uc-tip] {
   cursor: help;
 }
 
-.uc-unit.uc-hl.uc-mode-replace,
-.uc-unit.uc-hl.uc-mode-tooltip {
-  text-decoration-line: underline;
-  text-decoration-style: dotted;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
-  background-color: rgba(26, 115, 232, 0.1);
-  border-radius: 2px;
+.uc-unit .uc-annotation {
+  font: inherit;
+  font-style: normal;
+  white-space: nowrap;
 }
 
-/* Shared floating tooltip (one element per page) */
+.uc-unit:not(.uc-hl) .uc-annotation {
+  opacity: 0.78;
+}
+
+/* ---- Highlight: marks exactly what UnitConv changed or annotated --------- */
+.uc-unit.uc-hl .uc-changed,
+.uc-unit.uc-hl.uc-mode-tooltip {
+  background-color: rgba(255, 196, 0, 0.3);
+  box-shadow: inset 0 -1.5px 0 rgba(214, 140, 0, 0.85);
+  border-radius: 2px;
+  padding: 0 1px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* Tooltip mode leaves the original text: use a dotted underline instead of a solid one. */
+.uc-unit.uc-hl.uc-mode-tooltip {
+  box-shadow: none;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: rgba(214, 140, 0, 0.95);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+}
+
+.uc-unit.uc-hl[data-uc-tip]:hover .uc-changed,
+.uc-unit.uc-hl.uc-mode-tooltip:hover {
+  background-color: rgba(255, 196, 0, 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  .uc-unit.uc-hl .uc-changed,
+  .uc-unit.uc-hl.uc-mode-tooltip {
+    background-color: rgba(255, 196, 0, 0.22);
+    box-shadow: inset 0 -1.5px 0 rgba(255, 196, 0, 0.75);
+  }
+  .uc-unit.uc-hl.uc-mode-tooltip { box-shadow: none; }
+}
+
+/* ---- Shared floating hover card (one element per page) ------------------- */
 #uc-tooltip-popup {
   all: initial;
   position: fixed !important;
   z-index: 2147483647 !important;
   top: 0;
   left: 0;
-  max-width: 320px;
-  padding: 6px 10px;
-  border-radius: 6px;
+  display: block;
+  max-width: 360px;
+  padding: 7px 10px;
+  border-radius: 7px;
   background: #202124;
   color: #ffffff;
-  font: 500 13px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 400 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
-  white-space: nowrap;
   pointer-events: none;
   opacity: 0;
   transform: translateY(3px);
   transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+/* Reset page styles that could leak into the card's children. */
+#uc-tooltip-popup * {
+  all: unset;
+}
+
+#uc-tooltip-popup .uc-tip-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+#uc-tooltip-popup .uc-tip-label {
+  min-width: 72px;
+  color: #9aa0a6;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+#uc-tooltip-popup .uc-tip-value {
+  color: #e8eaed;
+}
+
+#uc-tooltip-popup .uc-tip-strong .uc-tip-value {
+  color: #ffd75e;
+  font-weight: 600;
 }
 
 #uc-tooltip-popup.uc-visible {

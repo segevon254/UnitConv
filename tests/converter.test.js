@@ -128,3 +128,97 @@ test('convertValue round-trips', () => {
   assert.ok(Math.abs(UC.convertValue(1, 'mi', 'km') - 1.609344) < 1e-12);
   assert.ok(Math.abs(UC.convertValue(100, 'c', 'f') - 212) < 1e-12);
 });
+
+// ---- UK imperial ----------------------------------------------------------------
+const uk = UC.normalizeSettings({ system: 'uk' });
+const convertWith = (text, settings, options) =>
+  UC.findConversions(text, settings, { locale: 'en-US', ...options }).map((m) => [m.original, m.converted]);
+
+test('UK system: metric volumes go to UK measures', () => {
+  assert.deepEqual(convertWith('2 L and 500 ml', uk), [['2 L', '3.52 pt'], ['500 ml', '17.6 fl oz']]);
+});
+
+test('UK system: US gallons convert to UK gallons, labelled', () => {
+  assert.deepEqual(convertWith('5 US gallons, 1 gallon', uk), [['5 US gallons', '4.16 UK gal'], ['1 gallon', '0.83 UK gal']]);
+});
+
+test('UK system leaves UK measures and shared units alone', () => {
+  assert.deepEqual(convertWith('2 imperial pints, 5 miles, 3 lb', uk), []);
+});
+
+test('explicit UK qualifiers are read as UK measures', () => {
+  assert.deepEqual(convertWith('10 imperial gallons, 2 UK pints, 3 imp. gal', metric), [
+    ['10 imperial gallons', '45.46 L'], ['2 UK pints', '1.14 L'], ['3 imp. gal', '13.64 L'],
+  ]);
+});
+
+test('British page: unqualified pints are UK pints, "US" still wins', () => {
+  assert.deepEqual(convertWith('2 pints, 2 US pints', metric, { volumeStandard: 'uk' }), [
+    ['2 pints', '1.14 L'], ['2 US pints', '946.35 mL'],
+  ]);
+});
+
+test('US system on a British page converts UK gallons to US gallons', () => {
+  assert.deepEqual(convertWith('2 gallons', imperial, { volumeStandard: 'uk' }), [['2 gallons', '2.4 US gal']]);
+});
+
+test('stone and stone + pounds', () => {
+  assert.deepEqual(convertWith('11 st 4 lb, 11st 4lb, 12 stone, 13 st', metric), [
+    ['11 st 4 lb', '71.67 kg'], ['11st 4lb', '71.67 kg'], ['12 stone', '76.2 kg'], ['13 st', '82.55 kg'],
+  ]);
+});
+
+test('ordinals and street names are not stone', () => {
+  assert.deepEqual(convertWith('the 1st place, 21st century, 5 St Mary', metric), []);
+});
+
+test('resolveVolumeStandard', () => {
+  assert.equal(UC.resolveVolumeStandard('auto', { hostname: 'www.bbc.co.uk' }), 'uk');
+  assert.equal(UC.resolveVolumeStandard('auto', { lang: 'en-GB' }), 'uk');
+  assert.equal(UC.resolveVolumeStandard('auto', { hostname: 'example.com', lang: 'en' }), 'us');
+  assert.equal(UC.resolveVolumeStandard('uk', { hostname: 'example.com' }), 'uk');
+});
+
+// ---- Temperature disambiguation ---------------------------------------------------
+cases(metric, [
+  ['Forecast: high of 75F today', [['75F', '23.9°C']]],
+  ['Preheat the oven to 350 F', [['350 F', '176.7°C']]],
+  ['Today 72 F and sunny', [['72 F', '22.2°C']]],
+  ['highs 75-80F', [['75-80F', '23.9–26.7°C']]],
+  ['Highs near 75°, lows 60°F', [['75°', '23.9°C'], ['60°F', '15.6°C']]],
+  ['turn 45° to the left, it is 70°F', [['70°F', '21.1°C']]],
+  // without temperature words a bare letter is not a unit
+  ['It is 75F', []],
+  ['Apartment 3C, high temps', []],
+  ['Grade 4F', []],
+  ['size 12C, temperatures low', []],
+  ['Vitamin C 500 mg', []],
+  // bare degrees with no °F/°C anywhere, or that are angles
+  ['rotate 90 degrees', []],
+  ['40.7° N, 74° W', []],
+  ['overnight lows 50s, 58°', []],
+  ['40°F below zero', []],
+]);
+
+test('bare degrees resolved from the surrounding element', () => {
+  const ctx = { getContext: () => 'Weather for Boston, temperatures in °F' };
+  assert.deepEqual(convertWith('High 75°', metric, ctx), [['75°', '23.9°C']]);
+  assert.deepEqual(convertWith('Low 60 degrees', metric, ctx), [['60 degrees', '15.6°C']]);
+  assert.deepEqual(convertWith('75F', metric, ctx), [['75F', '23.9°C']]);
+});
+
+test('temperature differences have no 32° offset', () => {
+  assert.deepEqual(convertWith('30 degrees warmer: 80°F', metric), [['30 degrees', '16.7°C'], ['80°F', '26.7°C']]);
+  assert.deepEqual(convertWith('temps rose by 10°F', metric), [['10°F', '5.6°C']]);
+  assert.deepEqual(convertWith('a rise of 2 °C', imperial), [['2 °C', '3.6°F']]);
+});
+
+test('ambiguous "degrees" cannot be chosen as a target', () => {
+  assert.equal(UC.normalizeSettings({ targets: { temperature: 'deg' } }).targets.temperature, 'auto');
+});
+
+test('UK system uses °C for temperatures', () => {
+  assert.deepEqual(convertWith('highs of 75°F, 20 °C', uk), [['75°F', '23.9°C']]);
+  const ukF = UC.normalizeSettings({ system: 'uk', targets: { temperature: 'f' } });
+  assert.deepEqual(convertWith('highs of 75°F, 20 °C', ukF), [['20 °C', '68°F']]);
+});

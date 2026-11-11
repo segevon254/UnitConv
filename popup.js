@@ -17,7 +17,7 @@
 
   function render() {
     enabledEl.checked = settings.enabled;
-    const system = settings.system === 'metric' ? 'Metric' : 'Imperial (US)';
+    const system = UC.SYSTEM_NAMES[settings.system];
     summaryEl.textContent = settings.enabled
       ? `${system} · ${MODE_NAMES[settings.displayMode]}`
       : 'Paused on all pages';

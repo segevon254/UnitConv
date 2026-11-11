@@ -147,6 +147,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 }
 .card h2 { font-size: 16px; }
 .card > p { margin: -8px 0 0; }
+.card > p.hint { margin: -6px 0 0; font-size: 13px; }
 
 .field { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .field label, .field .label { font-weight: 500; }
