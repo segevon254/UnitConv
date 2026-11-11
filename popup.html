@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UnitConv</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <main class="popup">
+    <header>
+      <img src="icons/icon48.png" alt="">
+      <h1>UnitConv</h1>
+    </header>
+
+    <div class="row">
+      <div>
+        <strong id="toggle-label">Convert units</strong>
+        <small id="system-summary">Loading…</small>
+      </div>
+      <label class="switch" title="Turn UnitConv on or off">
+        <input type="checkbox" id="enabled" aria-labelledby="toggle-label">
+        <span class="track"></span>
+      </label>
+    </div>
+
+    <div class="banner" id="permission-banner" hidden>
+      UnitConv needs permission to read pages before it can convert units.
+      <button class="btn btn-primary" id="grant" type="button" style="margin-top:8px">Grant access to websites</button>
+    </div>
+
+    <p class="stats" id="stats" aria-live="polite"></p>
+
+    <button class="btn" id="open-options" type="button">⚙ Open Settings</button>
+  </main>
+  <script src="converter.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

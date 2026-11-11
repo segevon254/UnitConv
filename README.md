@@ -1,0 +1,99 @@
+# UnitConv: automatic unit converter (Chrome and Firefox, Manifest V3)
+
+UnitConv finds measurements on any web page and converts them to the units you prefer.
+
+```
+The loop is 5-10 miles (8.05–16.09 km) long, climbs 1,200 ft (365.76 m), and it was 75°F (23.9°C).
+Recipe: 1 1/2 cups (354.88 mL) flour, ½ cup (118.29 mL) sugar, 8 oz (226.8 g) butter.
+```
+
+## Features
+
+| | |
+|---|---|
+| **Categories** | Length (in, ft, yd, mi, mm, cm, m, km), weight (oz, lb, mg, g, kg), temperature (°F, °C), volume (tsp, tbsp, fl oz, cups, pt, qt, gal, mL, L), area (sq in, sq ft, acres, sq mi, cm², m², ha, km²) |
+| **Number formats** | Decimals and thousands separators (`1,200.5`), negative values (`-5°F`), ranges (`5-10 miles`, `5 to 10 mi`, `70–75°F`), fractions (`3/4`, `1 1/2`, `1-1/2`, `½`, `1½`), dimensions (`12 x 10 ft`), feet and inches (`5'10"`, `6 ft 2 in`, `6′2″`), hyphenated forms (`10-foot pole`) |
+| **Unit spellings** | Abbreviations, full names, plurals, and UPPER/Title case (`mi`, `mile`, `Miles`, `MILES`; `°F`, `℉`, `degrees Fahrenheit`) |
+| **False-positive guards** | Skips dates and years (`in 2020`, `2019 in review`), prepositions (`5 in the morning`), money (`$5m`), rates (`60 km/h`, `30 miles per hour`), math (`2 + 3 = 5 m`), typography (`12pt font`), quoted numbers (`"Top 10"`), version numbers (`1.2.3`), and values the page already converted (`10 miles (16 km)`) |
+| **Display modes** | Inline annotation: `10 miles (16.09 km)`<br>Direct replacement: `16.09 km` (hover shows the original)<br>Hover tooltip: the text stays the same and hovering shows the conversion |
+| **Preferences** | A global system (metric or imperial), plus a per-category target: *Auto* (best-fit unit), *Off*, or a fixed unit. Also decimal places (0–4) and highlighting. |
+| **Performance** | TreeWalker scanning, a MutationObserver for SPAs and infinite scroll, and idle-time batching. In testing, 5,000 rows (about 10,000 conversions) took ~0.5 s with no long tasks over 50 ms. |
+| **Safety** | Never touches `input`, `textarea`, `select`, `button`, `[contenteditable]`, `code`, `pre`, `kbd`, `script`, `style`, `svg`, `math`, KaTeX/MathJax, or code editors (CodeMirror, Monaco, Ace). Every change can be reverted. |
+
+## File structure
+
+```
+UnitConv/
+├── manifest.json      MV3 manifest (works in Chrome and Firefox)
+├── converter.js       Shared engine: unit table, detection regex, conversion, formatting, settings
+├── content.js         DOM scanning (TreeWalker), MutationObserver, idle-time batching, revert
+├── styles.css         Styles injected into pages (annotations, highlight, tooltip)
+├── popup.html / .js   Toolbar popup: master ON/OFF switch, page stats, Open Settings
+├── options.html / .js Settings page with a live preview
+├── ui.css             Styles for the popup and settings page only (never injected into sites)
+├── icons/             16/32/48/128 px icons
+└── tests/             Node test-suite for the engine (not needed at runtime)
+```
+
+`converter.js` does not touch the DOM. It is shared by the content script, the popup, and the options page, and the Node tests can load it directly. No background script or service worker is needed: settings live in `storage.sync`, and every open tab reacts to `storage.onChanged`. This also avoids the main MV3 difference between Chrome and Firefox (`background.service_worker` vs `background.scripts`).
+
+## Installation
+
+### Google Chrome (also Edge, Brave, Opera, and other Chromium browsers)
+
+1. Download or clone this repository to a folder on your computer.
+2. Open **`chrome://extensions`** (Edge: `edge://extensions`).
+3. Turn on **Developer mode** (toggle in the top-right corner).
+4. Click **Load unpacked** and select the `UnitConv` folder (the one that contains `manifest.json`).
+5. Pin the extension: click the puzzle-piece icon in the toolbar, then the pin next to **UnitConv**.
+6. Reload any tabs that were already open. Content scripts are only injected into pages loaded after installation.
+
+After editing the code, click the ↻ reload icon on the extension's card, then reload your tabs.
+
+### Mozilla Firefox (128 or newer)
+
+**Temporary install (for development; removed when Firefox restarts):**
+
+1. Open **`about:debugging#/runtime/this-firefox`**.
+2. Click **Load Temporary Add-on…**.
+3. Select the **`manifest.json`** file inside the `UnitConv` folder.
+4. **Grant site access.** Firefox treats host permissions in MV3 as opt-in, so do one of these:
+   - Click the UnitConv toolbar icon and press **Grant access to websites** in the popup, or
+   - Go to `about:addons` → UnitConv → **Permissions** and turn on *Access your data for all websites*.
+5. Reload the tabs you want converted.
+
+**Permanent install:** Firefox release builds only install signed add-ons. Run `npm run build` to create a zip in `web-ext-artifacts/`, then upload it to [addons.mozilla.org](https://addons.mozilla.org/developers/) for signing (you can choose *unlisted* for private use). Firefox Developer Edition and Nightly can also install unsigned builds if you set `xpinstall.signatures.required` to `false` in `about:config`.
+
+> Before publishing to AMO, change `browser_specific_settings.gecko.id` in `manifest.json` to an ID you own (e.g. `unitconv@yourdomain.com`).
+
+## Using it
+
+- **Popup:** use the master switch to turn UnitConv on or off everywhere (pages update immediately, with no reload). The popup also shows how many measurements were converted on the current tab, and has an **Open Settings** button.
+- **Settings:**
+  - *Preferred system:* Metric or Imperial (US).
+  - *Display mode:* inline annotation, direct replacement, or hover tooltip.
+  - *Decimal places* and *highlight converted values*.
+  - *Target units per category:*
+    - `Auto` picks the best-fitting unit, e.g. `5 in → 12.7 cm` but `10 mi → 16.09 km`.
+    - `Don't convert` disables that category.
+    - A fixed unit (e.g. always `cm`) always converts into that unit. A fixed unit from the other system reverses the direction for that category only (e.g. metric everywhere but temperatures in °F).
+  - *Live preview:* type any text to see what will be detected.
+
+Units that are already in your target system are never converted. For example, a metric user won't see `5 km` changed into `5000 m`.
+
+## Development
+
+```bash
+npm test       # 65 engine tests (node:test, no dependencies)
+npm run lint   # Mozilla web-ext lint (manifest + code checks)
+npm run build  # zip for AMO / Chrome Web Store in web-ext-artifacts/
+```
+
+To exclude a part of your own page from conversion, add the `data-uc-ignore` attribute to it.
+
+## Known limitations
+
+- Imperial volume uses **US customary** units (1 cup = 236.59 mL, 1 gal = 3.785 L). UK imperial pints and gallons are not distinguished.
+- Ambiguous short forms are matched conservatively. For example, `in` is only treated as inches when it isn't followed by another word (unless that word is something like *tall*, *wide*, *screen*, or *display*), and `pt` needs a space before it. Bare `F` and `C` without a degree sign are ignored.
+- Text inside closed shadow DOM, `<canvas>`, and images can't be read.
+- Like every in-page translator, UnitConv splits text nodes. On framework-driven pages (e.g. React), a value that updates live *in the same text node* after conversion (like a ticking counter) can stay frozen at its converted value. Newly rendered content is still converted as normal. Toggling UnitConv off and on refreshes the page state.

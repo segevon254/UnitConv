@@ -1,0 +1,77 @@
+/*
+ * UnitConv — styles injected into web pages.
+ * Class names are prefixed (uc-) and kept minimal so page layout is unaffected.
+ */
+
+.uc-unit {
+  font: inherit;
+  color: inherit;
+  white-space: inherit;
+}
+
+/* Inline annotation: "10 miles (16.09 km)" */
+.uc-unit .uc-annotation {
+  font: inherit;
+  font-style: normal;
+  opacity: 0.78;
+  white-space: nowrap;
+}
+
+.uc-unit.uc-hl .uc-annotation {
+  opacity: 1;
+  color: #1a73e8;
+}
+
+@media (prefers-color-scheme: dark) {
+  .uc-unit.uc-hl .uc-annotation {
+    color: #8ab4f8;
+  }
+}
+
+/* Replacement & tooltip modes: subtle dotted underline signals "hover me" */
+.uc-unit.uc-mode-replace,
+.uc-unit.uc-mode-tooltip {
+  cursor: help;
+}
+
+.uc-unit.uc-hl.uc-mode-replace,
+.uc-unit.uc-hl.uc-mode-tooltip {
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  background-color: rgba(26, 115, 232, 0.1);
+  border-radius: 2px;
+}
+
+/* Shared floating tooltip (one element per page) */
+#uc-tooltip-popup {
+  all: initial;
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  top: 0;
+  left: 0;
+  max-width: 320px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #202124;
+  color: #ffffff;
+  font: 500 13px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+#uc-tooltip-popup.uc-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #uc-tooltip-popup {
+    transition: none;
+  }
+}

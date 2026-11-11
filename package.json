@@ -1,0 +1,12 @@
+{
+  "name": "unitconv",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cross-browser (Chrome & Firefox, Manifest V3) extension that converts units of measurement on web pages.",
+  "scripts": {
+    "test": "node --test tests/converter.test.js",
+    "lint": "npx --yes web-ext@8 lint --ignore-files tests package.json README.md",
+    "build": "npx --yes web-ext@8 build --overwrite-dest --ignore-files tests package.json README.md"
+  },
+  "license": "MIT"
+}

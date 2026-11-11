@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UnitConv Settings</title>
+  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="options">
+    <header>
+      <img src="icons/icon128.png" alt="">
+      <div>
+        <h1>UnitConv Settings</h1>
+        <p class="muted" style="margin:2px 0 0">Changes save automatically and apply to open tabs right away.</p>
+      </div>
+    </header>
+
+    <section class="card" aria-labelledby="general-heading">
+      <h2 id="general-heading">General</h2>
+      <div class="field">
+        <span class="label" id="enabled-label">Convert units on web pages</span>
+        <label class="switch">
+          <input type="checkbox" id="enabled" aria-labelledby="enabled-label">
+          <span class="track"></span>
+        </label>
+      </div>
+      <div class="field">
+        <span class="label" id="system-label">Preferred measurement system</span>
+        <div class="segmented" role="radiogroup" aria-labelledby="system-label">
+          <label><input type="radio" name="system" value="metric"><span>Metric</span></label>
+          <label><input type="radio" name="system" value="imperial"><span>Imperial (US)</span></label>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="display-heading">
+      <h2 id="display-heading">Display</h2>
+      <div class="mode-grid" role="radiogroup" aria-labelledby="display-heading">
+        <label class="mode-card">
+          <input type="radio" name="displayMode" value="annotate">
+          <strong>Inline annotation</strong>
+          <span class="muted">Keep the original and add the conversion.</span>
+          <code>10 miles (16.09 km)</code>
+        </label>
+        <label class="mode-card">
+          <input type="radio" name="displayMode" value="replace">
+          <strong>Direct replacement</strong>
+          <span class="muted">Swap in the converted value; hover shows the original.</span>
+          <code>16.09 km</code>
+        </label>
+        <label class="mode-card">
+          <input type="radio" name="displayMode" value="tooltip">
+          <strong>Hover tooltip</strong>
+          <span class="muted">Leave the text alone; hover to see the conversion.</span>
+          <code>10 miles → 16.09 km</code>
+        </label>
+      </div>
+      <div class="field">
+        <label for="precision">Decimal places</label>
+        <select id="precision">
+          <option value="0">0 (16 km)</option>
+          <option value="1">1 (16.1 km)</option>
+          <option value="2">2 (16.09 km)</option>
+          <option value="3">3 (16.093 km)</option>
+          <option value="4">4 (16.0934 km)</option>
+        </select>
+      </div>
+      <div class="field">
+        <span class="label" id="highlight-label">Highlight converted values</span>
+        <label class="switch">
+          <input type="checkbox" id="highlight" aria-labelledby="highlight-label">
+          <span class="track"></span>
+        </label>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="targets-heading">
+      <h2 id="targets-heading">Target units per category</h2>
+      <p class="muted">“Auto” picks the best-fitting unit of your preferred system (e.g. cm for small lengths, km for long distances).
+        Choosing a specific unit always converts into it — values already in that unit’s system are left alone.</p>
+      <table class="targets"><tbody id="targets"></tbody></table>
+    </section>
+
+    <section class="card" aria-labelledby="preview-heading">
+      <h2 id="preview-heading">Live preview</h2>
+      <label for="sample" class="muted">Edit the sample text to test detection:</label>
+      <textarea id="sample" spellcheck="false">The trail is 5-10 miles long and climbs 1,200 ft. Pack 2 lbs of trail mix, 16 fl oz of water and expect 75°F.
+Recipe: 1 1/2 cups flour, ½ cup sugar, bake at 350 °F. The 12 x 10 ft room is 120 sq ft on 2 acres; he is 5'10".
+Metric: a 5 km run, 20 °C, 500 g, 250 ml, 180 cm, 100 m².
+Ignored: in 2020, at 5 in the morning, 60 km/h, $5m, 2 + 3 = 5 m.</textarea>
+      <div class="preview" id="preview" aria-live="polite"></div>
+    </section>
+
+    <div class="actions">
+      <button class="btn" id="reset" type="button">Reset to defaults</button>
+      <span class="status" id="status" role="status"></span>
+    </div>
+  </main>
+  <script src="converter.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
